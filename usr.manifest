@@ -65,3 +65,9 @@
 /usr/mgmt/templates/**: ../../mgmt/web/templates/**
 /usr/mgmt/public/**: ../../mgmt/web/public/**
 /usr/mgmt/lib/**: ../../mgmt/web/lib/**
+/usr/cassandra/lib/**: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/lib/**
+/usr/cassandra/buildlib/**: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/build/lib/jars/**
+/usr/cassandra/conf/**: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/conf/**
+/usr/cassandra/apache-cassandra-1.2.6.jar: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/build/apache-cassandra-1.2.6-SNAPSHOT.jar
+/usr/cassandra/apache-cassandra-clientutil-1.2.6.jar: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/build/apache-cassandra-clientutil-1.2.6-SNAPSHOT.jar
+/usr/cassandra/apache-cassandra-thrift-1.2.6.jar: /home/penberg/cassandra-osv/apache-cassandra-1.2.6-src/build/apache-cassandra-thrift-1.2.6-SNAPSHOT.jar
