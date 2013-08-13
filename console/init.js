@@ -13,7 +13,6 @@
 
 // setup networking
 
-// uncomment to use a static ip address
-// $("ifconfig eth0 192.168.122.100 netmask 255.255.255.0 up");
-// $("route add default gw 192.168.122.1");
-
+$("ifconfig eth0 192.168.122.89 netmask 255.255.255.0 up");
+$("route add default gw 192.168.122.1");
+$("java com.cloudius.cli.util.TelnetCLI &")
