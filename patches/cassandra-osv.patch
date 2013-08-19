@@ -1,0 +1,66 @@
+Binary files host/apache-cassandra-1.2.6-src/build/classes/main/org/apache/cassandra/utils/CLibrary.class and apache-cassandra-1.2.6-src.new/build/classes/main/org/apache/cassandra/utils/CLibrary.class differ
+diff -urN host/apache-cassandra-1.2.6-src/conf/cassandra.yaml apache-cassandra-1.2.6-src.new/conf/cassandra.yaml
+--- host/apache-cassandra-1.2.6-src/conf/cassandra.yaml	2013-08-08 15:06:08.405680124 +0300
++++ apache-cassandra-1.2.6-src.new/conf/cassandra.yaml	2013-08-07 12:41:46.542271278 +0300
+@@ -110,10 +110,10 @@
+ # will spread data evenly across them, subject to the granularity of
+ # the configured compaction strategy.
+ data_file_directories:
+-    - /var/lib/cassandra/data
++    - /usr/var/lib/cassandra/data
+
+ # commit log
+-commitlog_directory: /var/lib/cassandra/commitlog
++commitlog_directory: /usr/var/lib/cassandra/commitlog
+
+ # policy for data disk failures:
+ # stop: shut down gossip and Thrift, leaving the node effectively dead, but
+@@ -193,7 +193,7 @@
+ row_cache_provider: SerializingCacheProvider
+
+ # saved caches
+-saved_caches_directory: /var/lib/cassandra/saved_caches
++saved_caches_directory: /usr/var/lib/cassandra/saved_caches
+
+ # commitlog_sync may be either "periodic" or "batch."
+ # When in batch mode, Cassandra won't ack writes until the commit log
+@@ -354,7 +354,7 @@
+ #
+ # Leaving this blank has the same effect it does for ListenAddress,
+ # (i.e. it will be based on the configured hostname of the node).
+-rpc_address: localhost
++rpc_address: 192.168.122.89
+ # port for Thrift to listen for clients on
+ rpc_port: 9160
+
+diff -urN host/apache-cassandra-1.2.6-src/conf/log4j-server.properties apache-cassandra-1.2.6-src.new/conf/log4j-server.properties
+--- host/apache-cassandra-1.2.6-src/conf/log4j-server.properties	2013-08-07 12:04:47.432099425 +0300
++++ apache-cassandra-1.2.6-src.new/conf/log4j-server.properties	2013-08-05 14:19:17.604459984 +0300
+@@ -32,7 +32,7 @@
+ log4j.appender.R.layout=org.apache.log4j.PatternLayout
+ log4j.appender.R.layout.ConversionPattern=%5p [%t] %d{ISO8601} %F (line %L) %m%n
+ # Edit the next line to point to your logs directory
+-log4j.appender.R.File=/var/log/cassandra/system.log
++log4j.appender.R.File=/usr/var/log/cassandra/system.log
+
+ # Application logging options
+ #log4j.logger.org.apache.cassandra=DEBUG
+diff -urN host/apache-cassandra-1.2.6-src/src/java/org/apache/cassandra/utils/CLibrary.java apache-cassandra-1.2.6-src.new/src/java/org/apache/cassandra/utils/CLibrary.java
+--- host/apache-cassandra-1.2.6-src/src/java/org/apache/cassandra/utils/CLibrary.java	2013-08-07 12:02:56.618663369 +0300
++++ apache-cassandra-1.2.6-src.new/src/java/org/apache/cassandra/utils/CLibrary.java	2013-08-07 12:07:37.461287046 +0300
+@@ -156,6 +156,7 @@
+      */
+     public static void createHardLink(File sourceFile, File destinationFile) throws IOException
+     {
++/*
+         try
+         {
+             link(sourceFile.getAbsolutePath(), destinationFile.getAbsolutePath());
+@@ -174,6 +175,7 @@
+             throw new IOException(String.format("Unable to create hard link from %s to %s (errno %d)",
+                                                 sourceFile, destinationFile, errno(e)));
+         }
++*/
+     }
+
+     public static void createHardLinkWithExec(File sourceFile, File destinationFile) throws IOException
