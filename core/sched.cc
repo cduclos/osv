@@ -107,21 +107,26 @@ void cpu::reschedule_from_interrupt(bool preempt)
     } while (cpu::current()->handle_incoming_wakeups());
 }
 
+bool need_to_switch(s64 current_vruntime, s64 next_vruntime)
+{
+    return current_vruntime >= next_vruntime + vruntime_bias;
+}
+
 void cpu::reschedule(bool preempt)
 {
     need_reschedule = false;
     handle_incoming_wakeups();
     auto now = clock::get()->time();
     thread* p = thread::current();
-    // avoid cycling through the runqueue if p still has the highest priority
-    auto bias = vruntime_bias;
-    s64 current_run = now - running_since;
+    // running_since is only ever updated on the same CPU
+    s64 current_run = now - running_since.load(std::memory_order_relaxed);
     if (p->_vruntime + current_run < 0) { // overflow (idle thread)
         current_run = 0;
     }
+    // avoid cycling through the runqueue if p still has the highest priority
     if (p->_status == thread::status::running
             && (runqueue.empty()
-                || p->_vruntime + current_run < runqueue.begin()->_vruntime + bias)) {
+                || !need_to_switch(p->_vruntime + current_run, runqueue.begin()->_vruntime))) {
         update_preemption_timer(p, now, current_run);
         return;
     }
@@ -133,7 +138,8 @@ void cpu::reschedule(bool preempt)
     auto ni = runqueue.begin();
     auto n = &*ni;
     runqueue.erase(ni);
-    running_since = now;
+    running_since.store(now, std::memory_order_relaxed);
+    running_vruntime.store(n->_vruntime, std::memory_order_release);
     assert(n->_status.load() == thread::status::queued);
     n->_status.store(thread::status::running);
     if (n != thread::current()) {
@@ -144,6 +150,7 @@ void cpu::reschedule(bool preempt)
         if (p->_status.load(std::memory_order_relaxed) == thread::status::queued
                 && p != idle_thread) {
             n->_vruntime += context_switch_penalty;
+            running_vruntime.fetch_add(context_switch_penalty, std::memory_order_release);
         }
         trace_sched_switch(n, p->_vruntime, n->_vruntime);
         update_preemption_timer(n, now, 0);
@@ -194,6 +201,28 @@ void cpu::idle_poll_end()
 {
     idle_poll.store(false, std::memory_order_relaxed);
     std::atomic_thread_fence(std::memory_order_seq_cst);
+}
+
+// This function is always called on a different CPU than what "this" refers to
+// which is why we use release-acquire ordering for runqueue_vruntime,
+// running_vruntime, and running_since.
+bool cpu::need_to_wake(s64 waiting_vruntime)
+{
+    // Use acquire memory ordering to ensure writes to running_vruntime and
+    // running_since prior to the update to runqueue_vruntime are visible to
+    // this CPU. This means that we will never see a runqueue_vruntime that is
+    // never newer than running_vruntime and running_since and thus guarantee
+    // not to miss a wakeup.
+    auto rq_vruntime = runqueue_vruntime.load(std::memory_order_acquire);
+    s64 vruntime = running_vruntime.load(std::memory_order_relaxed);
+    auto now = clock::get()->time();
+    s64 current_run = now - running_since.load(std::memory_order_relaxed);
+    if (vruntime + current_run < 0) { // overflow (idle thread)
+        current_run = 0;
+    }
+    s64 current_vruntime = vruntime + current_run;
+    return need_to_switch(current_vruntime, waiting_vruntime)
+        || need_to_switch(current_vruntime, rq_vruntime);
 }
 
 void cpu::send_wakeup_ipi()
@@ -285,6 +314,9 @@ bool cpu::enqueue(thread& t, bool waking)
     }
     auto head = runqueue.begin();
     runqueue.insert_equal(t);
+    // Use release memory ordering to make writes to running_since and
+    // running_vruntime visible to other CPUs.
+    runqueue_vruntime.store(runqueue.begin()->_vruntime, std::memory_order_release);
     return head != runqueue.begin();
 }
 
@@ -536,10 +568,9 @@ void thread::wake()
     unsigned c = cpu::current()->id;
     _cpu->incoming_wakeups[c].push_front(*this);
     _cpu->incoming_wakeups_mask.set(c);
-    // FIXME: avoid if the cpu is alive and if the priority does not
-    // FIXME: warrant an interruption
     if (_cpu != current()->tcpu()) {
-        if (!_cpu->wakeup_ipi_sent.exchange(true, std::memory_order_relaxed)) {
+        if (_cpu->need_to_wake(_vruntime)
+                && !_cpu->wakeup_ipi_sent.exchange(true, std::memory_order_relaxed)) {
             _cpu->send_wakeup_ipi();
         }
     } else {

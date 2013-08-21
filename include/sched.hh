@@ -333,7 +333,11 @@ struct cpu : private timer_base::client {
     cpu_set incoming_wakeups_mask;
     incoming_wakeup_queue* incoming_wakeups;
     thread* terminating_thread;
-    s64 running_since;
+    std::atomic<s64> running_since;
+    // vruntime of the running thread
+    std::atomic<s64> running_vruntime;
+    // vruntime of the runqueue head
+    std::atomic<s64> runqueue_vruntime;
     void* percpu_base;
     static cpu* current();
     void init_on_cpu();
@@ -344,6 +348,7 @@ struct cpu : private timer_base::client {
     void do_idle();
     void idle_poll_start();
     void idle_poll_end();
+    bool need_to_wake(s64 waiting_vruntime);
     void send_wakeup_ipi();
     void load_balance();
     unsigned load();
