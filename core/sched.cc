@@ -234,6 +234,7 @@ void cpu::idle()
 void cpu::handle_incoming_wakeups()
 {
     cpu_set queues_with_wakes{incoming_wakeups_mask.fetch_clear()};
+    wakeup_ipi_sent.store(false, std::memory_order_relaxed);
     if (!queues_with_wakes) {
         return;
     }
@@ -317,6 +318,7 @@ void cpu::load_balance()
             mig.remote_thread_local_var(current_cpu) = min;
             min->incoming_wakeups[id].push_front(mig);
             min->incoming_wakeups_mask.set(id);
+            min->wakeup_ipi_sent.store(true, std::memory_order_relaxed);
             // FIXME: avoid if the cpu is alive and if the priority does not
             // FIXME: warrant an interruption
             min->send_wakeup_ipi();
@@ -519,14 +521,15 @@ void thread::wake()
     preempt_disable();
     unsigned c = cpu::current()->id;
     _cpu->incoming_wakeups[c].push_front(*this);
-    if (!_cpu->incoming_wakeups_mask.test_all_and_set(c)) {
-        // FIXME: avoid if the cpu is alive and if the priority does not
-        // FIXME: warrant an interruption
-        if (_cpu != current()->tcpu()) {
+    _cpu->incoming_wakeups_mask.set(c);
+    // FIXME: avoid if the cpu is alive and if the priority does not
+    // FIXME: warrant an interruption
+    if (_cpu != current()->tcpu()) {
+        if (!_cpu->wakeup_ipi_sent.exchange(true, std::memory_order_relaxed)) {
             _cpu->send_wakeup_ipi();
-        } else {
-            need_reschedule = true;
         }
+    } else {
+        need_reschedule = true;
     }
     preempt_enable();
 }

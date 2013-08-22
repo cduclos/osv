@@ -329,6 +329,7 @@ struct cpu : private timer_base::client {
     std::atomic<bool> idle_poll = { false };
     // for each cpu, a list of threads that are migrating into this cpu:
     typedef lockless_queue<thread, &thread::_wakeup_link> incoming_wakeup_queue;
+    std::atomic<bool> wakeup_ipi_sent = { false };
     cpu_set incoming_wakeups_mask;
     incoming_wakeup_queue* incoming_wakeups;
     thread* terminating_thread;
