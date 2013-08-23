@@ -338,7 +338,7 @@ struct cpu : private timer_base::client {
     static cpu* current();
     void init_on_cpu();
     void schedule(bool yield = false);
-    void handle_incoming_wakeups();
+    bool handle_incoming_wakeups();
     bool poll_wakeup_queue();
     void idle();
     void do_idle();
@@ -347,8 +347,9 @@ struct cpu : private timer_base::client {
     void send_wakeup_ipi();
     void load_balance();
     unsigned load();
-    void reschedule_from_interrupt(bool preempt = false);
-    void enqueue(thread& t, bool waking = false);
+    static void reschedule_from_interrupt(bool preempt = false);
+    void reschedule(bool preempt);
+    bool enqueue(thread& t, bool waking = false);
     void init_idle_thread();
     void update_preemption_timer(thread* current, s64 now, s64 run);
     virtual void timer_fired() override;

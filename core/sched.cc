@@ -100,6 +100,15 @@ void cpu::schedule(bool yield)
 
 void cpu::reschedule_from_interrupt(bool preempt)
 {
+    do {
+        // The call to cpu::reschedule() invalidates "this" pointer on context
+        // switch so use cpu::current() for handle_incoming_wakeups().
+        cpu::current()->reschedule(preempt);
+    } while (cpu::current()->handle_incoming_wakeups());
+}
+
+void cpu::reschedule(bool preempt)
+{
     need_reschedule = false;
     handle_incoming_wakeups();
     auto now = clock::get()->time();
@@ -231,13 +240,14 @@ void cpu::idle()
     }
 }
 
-void cpu::handle_incoming_wakeups()
+bool cpu::handle_incoming_wakeups()
 {
     cpu_set queues_with_wakes{incoming_wakeups_mask.fetch_clear()};
     wakeup_ipi_sent.store(false, std::memory_order_relaxed);
     if (!queues_with_wakes) {
-        return;
+        return false;
     }
+    bool changed = false;
     for (auto i : queues_with_wakes) {
         incoming_wakeup_queue q;
         incoming_wakeups[i].copy_and_clear(q);
@@ -247,14 +257,16 @@ void cpu::handle_incoming_wakeups()
             irq_save_lock_type irq_lock;
             WITH_LOCK(irq_lock) {
                 t._status.store(thread::status::queued);
-                enqueue(t, true);
+                if (enqueue(t, true))
+                    changed = true;
                 t.resume_timers();
             }
         }
     }
+    return changed;
 }
 
-void cpu::enqueue(thread& t, bool waking)
+bool cpu::enqueue(thread& t, bool waking)
 {
     trace_sched_queue(&t);
     if (waking) {
@@ -271,7 +283,9 @@ void cpu::enqueue(thread& t, bool waking)
     if (&t == idle_thread) {
         t._vruntime = thread::max_vruntime;
     }
+    auto head = runqueue.begin();
     runqueue.insert_equal(t);
+    return head != runqueue.begin();
 }
 
 void cpu::init_on_cpu()
@@ -370,7 +384,7 @@ void thread::yield()
     t->_cpu->runqueue.insert_equal(*t);
     assert(t->_status.load() == status::running);
     t->_status.store(status::queued);
-    t->_cpu->reschedule_from_interrupt(false);
+    cpu::reschedule_from_interrupt(false);
 }
 
 thread::stack_info::stack_info()
@@ -689,7 +703,7 @@ unsigned int get_preempt_counter()
 void preempt()
 {
     if (preemptable()) {
-        sched::cpu::current()->reschedule_from_interrupt(true);
+        cpu::reschedule_from_interrupt(true);
     } else {
         // preempt_enable() will pick this up eventually
         need_reschedule = true;
